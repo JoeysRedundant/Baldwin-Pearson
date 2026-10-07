@@ -1,10 +1,12 @@
-import { DatabaseSync } from 'node:sqlite';
+import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import seed from '@/data/listings.json';
 import type { Listing, Inquiry } from './types';
+import { hostedDatabase, type Row } from './database-client';
 const globalDb = globalThis as unknown as { bpDb?: DatabaseSync };
-export function db() {
+function localDatabase() {
+  if (process.env.VERCEL) throw new Error('DATABASE_URL must be configured for Vercel.');
   if (globalDb.bpDb) return globalDb.bpDb;
   const filename = process.env.DATABASE_PATH || path.join(process.cwd(), 'data', 'baldwin.sqlite');
   mkdirSync(path.dirname(filename), { recursive: true });
@@ -30,19 +32,44 @@ export function db() {
   globalDb.bpDb = d;
   return d;
 }
-export function getListings(admin = false): Listing[] {
-  return db()
-    .prepare(`SELECT body FROM listings ${admin ? '' : 'WHERE published=1'} ORDER BY rowid`)
-    .all()
-    .map((r) => JSON.parse(String(r.body)));
+export function db() {
+  const hosted = hostedDatabase();
+  if (hosted) return hosted;
+  const local = localDatabase();
+  return {
+    prepare(statement: string) {
+      const prepared = local.prepare(statement);
+      return {
+        all: async (...args: SQLInputValue[]) => prepared.all(...args) as Row[],
+        get: async (...args: SQLInputValue[]) => prepared.get(...args) as Row | undefined,
+        run: async (...args: SQLInputValue[]) => {
+          prepared.run(...args);
+        },
+      };
+    },
+  };
 }
-export function getListing(slug: string): Listing | undefined {
-  const row = db().prepare('SELECT body FROM listings WHERE slug=? AND published=1').get(slug);
+const seedOrder = new Map(seed.map((item, index) => [item.id, index]));
+export async function getListings(admin = false): Promise<Listing[]> {
+  const rows = await db()
+    .prepare(`SELECT body FROM listings ${admin ? '' : 'WHERE published=1'}`)
+    .all();
+  return rows
+    .map((r) => JSON.parse(String(r.body)) as Listing)
+    .sort(
+      (a, b) =>
+        (seedOrder.get(a.id) ?? 9999) - (seedOrder.get(b.id) ?? 9999) ||
+        a.title.localeCompare(b.title),
+    );
+}
+export async function getListing(slug: string): Promise<Listing | undefined> {
+  const row = await db()
+    .prepare('SELECT body FROM listings WHERE slug=? AND published=1')
+    .get(slug);
   return row ? JSON.parse(String(row.body)) : undefined;
 }
-export function getInquiries(): Inquiry[] {
-  return db()
-    .prepare('SELECT * FROM inquiries ORDER BY created_at DESC')
-    .all()
-    .map((row) => ({ ...row })) as unknown as Inquiry[];
+export async function getInquiries(): Promise<Inquiry[]> {
+  return (await db().prepare('SELECT * FROM inquiries ORDER BY created_at DESC').all()).map(
+    (row) => ({ ...row }),
+  ) as unknown as Inquiry[];
 }

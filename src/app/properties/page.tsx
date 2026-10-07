@@ -4,7 +4,7 @@ import { PropertyBrowser } from '@/components/property-browser';
 import { ContactBand, Eyebrow } from '@/components/ui';
 export const metadata = { title: 'Commercial properties' };
 export const dynamic = 'force-dynamic';
-export default function Properties() {
+export default async function Properties() {
   return (
     <>
       <section className="page-intro shell">
@@ -23,7 +23,7 @@ export default function Properties() {
       </section>
       <section className="shell pb-24">
         <Suspense fallback={<div className="skeleton h-96" />}>
-          <PropertyBrowser listings={getListings()} />
+          <PropertyBrowser listings={await getListings()} />
         </Suspense>
       </section>
       <ContactBand />

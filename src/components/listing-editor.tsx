@@ -166,7 +166,7 @@ export function ListingEditor({
           <p className="upload-help">
             {uploading
               ? 'Uploading image…'
-              : 'JPEG, PNG, or WebP. Maximum 10 MB each; up to 20 photos. The first image is the cover.'}
+              : 'JPEG, PNG, or WebP. Maximum 4 MB each; up to 20 photos. The first image is the cover.'}
           </p>
         </div>
         <div className="flex flex-wrap gap-8">

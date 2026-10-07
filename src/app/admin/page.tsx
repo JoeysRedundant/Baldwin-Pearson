@@ -9,7 +9,7 @@ export default async function Admin() {
   return (
     <section className="shell admin-wrap">
       {authenticated ? (
-        <AdminDashboard listings={getListings(true)} inquiries={getInquiries()} />
+        <AdminDashboard listings={await getListings(true)} inquiries={await getInquiries()} />
       ) : (
         <AdminLogin />
       )}

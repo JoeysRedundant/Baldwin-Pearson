@@ -5,8 +5,8 @@ import assets from '@/data/assets.json';
 import { PropertyCard } from '@/components/property-card';
 import { Arrow, ButtonLink, ContactBand, Eyebrow } from '@/components/ui';
 export const dynamic = 'force-dynamic';
-export default function Home() {
-  const listings = getListings()
+export default async function Home() {
+  const listings = (await getListings())
     .filter((x) => x.featured && x.status !== 'Closed')
     .slice(0, 4);
   return (

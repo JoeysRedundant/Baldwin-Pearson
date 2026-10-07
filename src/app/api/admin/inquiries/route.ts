@@ -8,7 +8,7 @@ export async function PATCH(req: Request) {
     const { id, read } = await jsonBody(req);
     if (typeof id !== 'string' || typeof read !== 'boolean')
       return NextResponse.json({ error: 'Invalid request.' }, { status: 400 });
-    db()
+    await db()
       .prepare('UPDATE inquiries SET read=? WHERE id=?')
       .run(read ? 1 : 0, id);
     return NextResponse.json({ ok: true });

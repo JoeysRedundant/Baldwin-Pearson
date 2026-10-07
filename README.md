@@ -20,22 +20,26 @@ The worktree is `E:\claude\baldwin-pearson-codex`, branch `codex/architectural-r
 
 - Home, firm/team, expertise, sales/lease/closed collections, 30 property detail pages, contact/appraisals, privacy, and custom 404.
 - Address/city/keyword search, location and property-type filters, sorting, and shareable query parameters.
-- Inquiry submissions stored in SQLite and viewable in the protected team inbox. Property inquiry links prefill the listing and service.
+- Inquiry submissions stored in Neon Postgres in production (SQLite locally) and viewable in the protected team inbox. Property inquiry links prefill the listing and service.
 - Create and edit listings, upload real photos, reorder the cover image, update prices/statuses, feature on the homepage, publish, and archive. Unpublishing preserves the record.
 - Hashed administrator password, random expiring sessions stored as hashes, HTTP-only same-site cookies, origin checks, schema validation, rate limits, and a honeypot field.
 - Legacy page redirects, metadata, sitemap, responsive imagery, keyboard focus styles, and reduced-motion support.
 
 ## Production and email
 
-This implementation is designed for **one Node.js server with a persistent disk**, using the provided Dockerfile or `npm run build` followed by `npm start`. SQLite and uploaded images must survive restarts. Back up the database using SQLite's backup facility and back up the upload directory. Do not use an ephemeral/serverless filesystem such as a default Vercel function for this storage layer.
+Production runs on **Vercel with Neon Postgres and private Vercel Blob storage**. Listings, inquiries, sessions, and rate limits persist in Postgres; uploaded photos persist in Blob and are served through the media route. Vercel runtime code refuses to fall back to its ephemeral filesystem. Local development uses SQLite and the local upload directory by default.
+
+- Website: https://baldwin-pearson.vercel.app
+- Repository: https://github.com/JoeysRedundant/Baldwin-Pearson
+- Administrator workspace: https://baldwin-pearson.vercel.app/admin
 
 1. Configure the variables in `.env.example`. Set `SITE_URL` to the exact public HTTPS origin and set `COOKIE_SECURE=true`.
 2. Supply a private `ADMIN_PASSWORD_HASH` generated with the same scrypt format as `scripts/setup.mjs`; keep the plaintext password out of the deployment environment and source control.
-3. Persist `/app/data` when using Docker. Run behind an HTTPS reverse proxy with an upload size limit of 12 MB. Only set `TRUST_PROXY=true` when the proxy overwrites forwarded IP headers; otherwise rate limits are shared across visitors.
+3. Connect a Neon database and private Blob store to the Vercel production environment. With `DATABASE_URL` set, run `npm run db:migrate` once to initialize tables and import seed listings; existing listing edits are preserved. Vercel supplies Blob credentials through its store integration. Photo uploads accept up to 4 MB per file. Set `TRUST_PROXY=true` on Vercel, which supplies forwarded client IP headers.
 4. To receive email alerts, set `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`, and `INQUIRY_TO`. Without SMTP, submissions still reach the working administrator inbox. Failed email delivery never discards a saved inquiry and is indicated in the inbox.
 5. Set `SITE_URL` during the production build as well as at runtime so prerendered metadata uses the public domain. No analytics or advertising scripts are installed.
 
-The live Baldwin Pearson domain has **not** been replaced. Public hosting and an SMTP provider are not provisioned by this repository. The Docker deployment path is supplied but has not been container-tested in this Windows session.
+The original baldwinpearson.com domain has **not** been replaced. SMTP is optional and is not configured; contact requests are available in the protected inbox. A standalone server can still use SQLite by omitting `DATABASE_URL` and persisting `/app/data`, including uploaded images. The Docker deployment path is supplied but has not been container-tested in this Windows session.
 
 ## Verification
 
@@ -47,6 +51,8 @@ npm run format:check
 ```
 
 `npm test` starts an isolated production instance on loopback port 3102, uses a separate database and upload directory under `data/test-runs`, and shuts down the test server afterward. It never modifies the normal preview database. Build before running tests. Port 3102 must be free.
+
+Set `TEST_HOSTED=true` and supply cloud database/Blob credentials to run the same checks against those services through the local test server. The suite removes its own inquiry, listing, and uploaded-photo fixtures afterward. Cloud tests have verified persistence, photo uploads, publication, and authentication against the provisioned production services.
 
 Tests cover every public property page and image, legacy redirects, missing-property 404s, sitemap, unauthenticated access rejection, inquiry validation and persistence, origin checks, sign-in, image upload/invalid-image rejection, draft/publication/edit/archive transitions, duplicate slugs, unsafe image paths, inquiry read state, and session revocation.
 

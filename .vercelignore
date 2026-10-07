@@ -1,0 +1,9 @@
+.env*
+data
+source
+source-*.html
+tests
+artifacts
+Dockerfile
+.agents
+skills-lock.json

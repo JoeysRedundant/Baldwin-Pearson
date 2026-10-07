@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { load } from 'cheerio';
+import { neon } from '@neondatabase/serverless';
+import { del } from '@vercel/blob';
 const base = process.env.TEST_BASE_URL || 'http://localhost:3101';
 const headers = { 'Content-Type': 'application/json', Origin: base };
 const post = (path, data, extra = {}) =>
@@ -11,7 +13,29 @@ const post = (path, data, extra = {}) =>
     headers: { ...headers, ...extra },
     body: JSON.stringify(data),
   });
-const database = new DatabaseSync(process.env.TEST_DATABASE_PATH || 'data/test/test.sqlite');
+const sql = process.env.TEST_DATABASE_URL ? neon(process.env.TEST_DATABASE_URL) : null;
+const sqlite = sql
+  ? null
+  : new DatabaseSync(process.env.TEST_DATABASE_PATH || 'data/test/test.sqlite');
+const database = {
+  prepare(query) {
+    let n = 0;
+    const postgresQuery = query.replace(/\?/g, () => `$${++n}`);
+    return {
+      get: async (...args) =>
+        sql ? (await sql.query(postgresQuery, args))[0] : sqlite.prepare(query).get(...args),
+      run: async (...args) =>
+        sql ? sql.query(postgresQuery, args) : sqlite.prepare(query).run(...args),
+    };
+  },
+};
+let inquiryId, listingId, uploadedPath;
+test.after(async () => {
+  if (listingId) await database.prepare('DELETE FROM listings WHERE id=?').run(listingId);
+  if (inquiryId) await database.prepare('DELETE FROM inquiries WHERE id=?').run(inquiryId);
+  if (sql && uploadedPath) await del('properties/' + uploadedPath.split('/').pop());
+  sqlite?.close();
+});
 test('public pages, all property details, assets, legacy redirects, sitemap, and protected workspace', async () => {
   const listings = JSON.parse(fs.readFileSync('src/data/listings.json'));
   for (const url of [
@@ -74,7 +98,8 @@ test('inquiries validate, persist, reject cross-origin and honeypot submissions'
   const r = await post('/api/inquiries', data);
   assert.equal(r.status, 201);
   const { id } = await r.json();
-  const record = database.prepare('SELECT * FROM inquiries WHERE id=?').get(id);
+  inquiryId = id;
+  const record = await database.prepare('SELECT * FROM inquiries WHERE id=?').get(id);
   assert.equal(record.email, data.email);
   assert.equal(record.interest, 'Appraisal');
   assert.equal(record.read, 0);
@@ -109,6 +134,7 @@ test('admin login, photo upload, draft / publish / update / archive, read state 
   });
   assert.equal(upload.status, 200);
   const { url } = await upload.json();
+  uploadedPath = url;
   assert.equal((await fetch(base + url)).status, 200);
   const badForm = new FormData();
   badForm.append('file', new Blob(['not an image'], { type: 'image/webp' }), 'bad.webp');
@@ -123,6 +149,7 @@ test('admin login, photo upload, draft / publish / update / archive, read state 
     400,
   );
   const id = 'qa-property-' + Date.now();
+  listingId = id;
   const listing = {
     id,
     slug: id,
@@ -182,14 +209,17 @@ test('admin login, photo upload, draft / publish / update / archive, read state 
     200,
   );
   assert.equal((await fetch(base + '/properties/' + id)).status, 404);
-  const inquiry = database.prepare('SELECT id FROM inquiries LIMIT 1').get();
+  const inquiry = { id: inquiryId };
   const read = await fetch(base + '/api/admin/inquiries', {
     method: 'PATCH',
     headers: { ...headers, Cookie: cookie },
     body: JSON.stringify({ id: inquiry.id, read: true }),
   });
   assert.equal(read.status, 200);
-  assert.equal(database.prepare('SELECT read FROM inquiries WHERE id=?').get(inquiry.id).read, 1);
+  assert.equal(
+    (await database.prepare('SELECT read FROM inquiries WHERE id=?').get(inquiry.id)).read,
+    1,
+  );
   assert.equal(
     (
       await fetch(base + '/api/auth', {
@@ -200,5 +230,4 @@ test('admin login, photo upload, draft / publish / update / archive, read state 
     200,
   );
   assert.equal((await post('/api/admin/listings', listing, { Cookie: cookie })).status, 401);
-  database.prepare('DELETE FROM listings WHERE id=?').run(id);
 });

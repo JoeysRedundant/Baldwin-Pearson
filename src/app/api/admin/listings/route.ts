@@ -13,14 +13,14 @@ export async function POST(req: Request) {
         { status: 400 },
       );
     const d = result.data;
-    db()
+    await db()
       .prepare(
         'INSERT INTO listings(id,slug,published,body) VALUES(?,?,?,?) ON CONFLICT(id) DO UPDATE SET slug=excluded.slug,published=excluded.published,body=excluded.body',
       )
       .run(d.id, d.slug, d.published ? 1 : 0, JSON.stringify(d));
     return NextResponse.json({ ok: true });
   } catch (e) {
-    const conflict = String(e).includes('UNIQUE');
+    const conflict = /UNIQUE|unique constraint/i.test(String(e));
     return NextResponse.json(
       {
         error: conflict ? 'A listing already uses that URL slug.' : 'Unable to save this listing.',

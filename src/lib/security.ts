@@ -6,9 +6,9 @@ const hash = (s: string) => createHash('sha256').update(s).digest('hex');
 export async function isAdmin() {
   const token = (await cookies()).get(sessionName)?.value;
   if (!token) return false;
-  return !!db()
+  return !!(await db()
     .prepare('SELECT token FROM sessions WHERE token=? AND expires>?')
-    .get(hash(token), Date.now());
+    .get(hash(token), Date.now()));
 }
 export function verifyPassword(password: string) {
   const encoded = process.env.ADMIN_PASSWORD_HASH;
@@ -23,23 +23,28 @@ export function verifyPassword(password: string) {
     return false;
   }
 }
-export function createSession() {
+export async function createSession() {
   const token = randomBytes(32).toString('hex');
-  db().prepare('DELETE FROM sessions WHERE expires<?').run(Date.now());
-  db()
+  await db().prepare('DELETE FROM sessions WHERE expires<?').run(Date.now());
+  await db()
     .prepare('INSERT INTO sessions VALUES(?,?)')
     .run(hash(token), Date.now() + 8 * 60 * 60 * 1000);
   return token;
 }
-export function revokeSession(token: string) {
-  db().prepare('DELETE FROM sessions WHERE token=?').run(hash(token));
+export async function revokeSession(token: string) {
+  await db().prepare('DELETE FROM sessions WHERE token=?').run(hash(token));
 }
 export function sameOrigin(req: Request) {
   const origin = req.headers.get('origin');
   const allowed = process.env.SITE_URL || new URL(req.url).origin;
   return !!origin && origin === new URL(allowed).origin;
 }
-export function rateLimit(req: Request, scope: string, limit: number, windowMs = 15 * 60 * 1000) {
+export async function rateLimit(
+  req: Request,
+  scope: string,
+  limit: number,
+  windowMs = 15 * 60 * 1000,
+) {
   const ip =
     process.env.TRUST_PROXY === 'true'
       ? req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'shared'
@@ -47,10 +52,10 @@ export function rateLimit(req: Request, scope: string, limit: number, windowMs =
   const key = hash(scope + ip),
     now = Date.now();
   const d = db();
-  d.prepare('DELETE FROM rate_limits WHERE expires<?').run(now);
-  const r = d
+  await d.prepare('DELETE FROM rate_limits WHERE expires<?').run(now);
+  const r = await d
     .prepare(
-      'INSERT INTO rate_limits(key,count,expires) VALUES(?,1,?) ON CONFLICT(key) DO UPDATE SET count=count+1 RETURNING count',
+      'INSERT INTO rate_limits(key,count,expires) VALUES(?,1,?) ON CONFLICT(key) DO UPDATE SET count=rate_limits.count+1 RETURNING count',
     )
     .get(key, now + windowMs);
   return Number(r?.count) <= limit;

@@ -6,8 +6,15 @@ const root = path.resolve('data', 'test-runs', randomUUID());
 fs.mkdirSync(root, { recursive: true });
 const salt = 'baldwin-local-test-only',
   base = 'http://localhost:3102';
+const hosted = process.env.TEST_HOSTED === 'true';
+if (hosted && !process.env.DATABASE_URL) throw new Error('Hosted tests require DATABASE_URL.');
 const env = {
   ...process.env,
+  VERCEL: '',
+  DATABASE_URL: hosted ? process.env.DATABASE_URL : '',
+  BLOB_STORE_ID: hosted ? process.env.BLOB_STORE_ID : '',
+  BLOB_READ_WRITE_TOKEN: hosted ? process.env.BLOB_READ_WRITE_TOKEN : '',
+  TRUST_PROXY: 'false',
   SITE_URL: base,
   DATABASE_PATH: path.join(root, 'test.sqlite'),
   UPLOAD_DIR: path.join(root, 'uploads'),
@@ -40,7 +47,12 @@ try {
   }
   if (!ready) throw new Error('Test server did not become ready.');
   const child = spawn(process.execPath, ['--test', 'tests/integration.test.mjs'], {
-    env: { ...process.env, TEST_BASE_URL: base, TEST_DATABASE_PATH: env.DATABASE_PATH },
+    env: {
+      ...env,
+      TEST_BASE_URL: base,
+      TEST_DATABASE_PATH: env.DATABASE_PATH,
+      TEST_DATABASE_URL: hosted ? env.DATABASE_URL : '',
+    },
     stdio: 'inherit',
     windowsHide: true,
   });

@@ -11,7 +11,7 @@ import {
 } from '@/lib/security';
 export async function POST(req: Request) {
   if (!sameOrigin(req)) return NextResponse.json({ error: 'Invalid origin.' }, { status: 403 });
-  if (!rateLimit(req, 'login', 8))
+  if (!(await rateLimit(req, 'login', 8)))
     return NextResponse.json(
       { error: 'Too many attempts. Try again in 15 minutes.' },
       { status: 429 },
@@ -21,7 +21,7 @@ export async function POST(req: Request) {
     if (typeof password !== 'string' || password.length > 256 || !verifyPassword(password))
       return NextResponse.json({ error: 'Incorrect password.' }, { status: 401 });
     const res = NextResponse.json({ ok: true });
-    res.cookies.set(sessionName, createSession(), {
+    res.cookies.set(sessionName, await createSession(), {
       httpOnly: true,
       secure: process.env.COOKIE_SECURE !== 'false',
       sameSite: 'strict',
@@ -36,7 +36,7 @@ export async function POST(req: Request) {
 export async function DELETE(req: Request) {
   if (!sameOrigin(req)) return NextResponse.json({ error: 'Invalid origin.' }, { status: 403 });
   const token = (await cookies()).get(sessionName)?.value;
-  if (token) revokeSession(token);
+  if (token) await revokeSession(token);
   const res = NextResponse.json({ ok: true });
   res.cookies.delete(sessionName);
   return res;

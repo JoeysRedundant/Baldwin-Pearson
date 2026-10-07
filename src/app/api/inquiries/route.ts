@@ -11,7 +11,7 @@ export async function POST(req: Request) {
       { error: 'Please submit this form from our website.' },
       { status: 403 },
     );
-  if (!rateLimit(req, 'inquiry', 20))
+  if (!(await rateLimit(req, 'inquiry', 20)))
     return NextResponse.json(
       { error: 'Too many requests. Please try again later or call 203-335-5117.' },
       { status: 429 },
@@ -24,7 +24,7 @@ export async function POST(req: Request) {
     if (d.website)
       return NextResponse.json({ error: 'Unable to submit this request.' }, { status: 400 });
     const id = randomUUID();
-    db()
+    await db()
       .prepare(
         'INSERT INTO inquiries(id,name,email,phone,interest,message,property,created_at) VALUES(?,?,?,?,?,?,?,?)',
       )
@@ -58,9 +58,9 @@ export async function POST(req: Request) {
             subject: `Website inquiry: ${d.interest}`,
             text: `${d.name}\n${d.email}\n${d.phone}\n${d.property}\n\n${d.message}`,
           });
-          db().prepare('UPDATE inquiries SET notification=? WHERE id=?').run('sent', id);
+          await db().prepare('UPDATE inquiries SET notification=? WHERE id=?').run('sent', id);
         } catch {
-          db().prepare('UPDATE inquiries SET notification=? WHERE id=?').run('failed', id);
+          await db().prepare('UPDATE inquiries SET notification=? WHERE id=?').run('failed', id);
           console.error('Inquiry saved; email notification failed.');
         }
       });

@@ -9,7 +9,7 @@ import assets from '@/data/assets.json';
 export const dynamic = 'force-dynamic';
 type Props = { params: Promise<{ slug: string }> };
 export async function generateMetadata({ params }: Props) {
-  const p = getListing((await params).slug);
+  const p = await getListing((await params).slug);
   return {
     title: p ? `${p.title}, ${p.city}` : 'Property not found',
     description: p?.description.slice(0, 160),
@@ -17,9 +17,9 @@ export async function generateMetadata({ params }: Props) {
   };
 }
 export default async function Property({ params }: Props) {
-  const p = getListing((await params).slug);
+  const p = await getListing((await params).slug);
   if (!p) notFound();
-  const related = getListings()
+  const related = (await getListings())
       .filter((x) => x.id !== p.id && x.status !== 'Closed')
       .slice(0, 2),
     dan = p.broker === 'Daniel Shawah';
