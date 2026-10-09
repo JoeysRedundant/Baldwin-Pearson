@@ -81,7 +81,7 @@ export function InquiryForm({
           Regarding <strong>{property}</strong>
         </div>
       )}
-      <div className="grid gap-6 sm:grid-cols-2">
+      <div className="inquiry-contact-fields">
         <div>
           <label htmlFor="name">
             Full name <span>*</span>

@@ -5,8 +5,8 @@ export function Footer() {
   return (
     <footer className="site-footer">
       <div className="shell">
-        <div className="grid gap-10 py-16 md:grid-cols-[2fr_1fr_1fr_1.2fr]">
-          <div>
+        <div className="grid grid-cols-2 gap-x-6 gap-y-10 py-16 lg:grid-cols-[2fr_1fr_1fr_1.2fr] lg:gap-10">
+          <div className="col-span-2 lg:col-span-1">
             <Link href="/" aria-label="Baldwin Pearson home">
               <Image src={assets.logo} width={240} height={69} alt="Baldwin Pearson & Company" />
             </Link>
@@ -30,7 +30,7 @@ export function Footer() {
             <Link href="/services#appraisals">Property appraisals</Link>
             <Link href="/contact?interest=Appraisal">Request an appraisal</Link>
           </div>
-          <div>
+          <div className="col-span-2 lg:col-span-1">
             <h2 className="footer-label">Find us</h2>
             <address>
               55 Walls Drive, Suite 304
